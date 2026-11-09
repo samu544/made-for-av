@@ -15,6 +15,7 @@ concurrency:
 jobs:
   run:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout Public Repo
         uses: actions/checkout@v4
@@ -37,21 +38,21 @@ jobs:
           pip install requests pycryptodome
 
       - name: Run Python
-        working-directory: private-source
         run: |
           python sk-file.py --encode
 
       - name: Copy Output File
         run: |
-          cp private-source/output_encoded.txt output_encoded.txt
+          cp output_encoded.txt private-source/output_encoded.txt
 
       - name: Push Output
+        working-directory: private-source
         run: |
           test -s output_encoded.txt
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add output_encoded.txt
-          
+
           if ! git diff --cached --quiet; then
             git commit -m "Update encoded output [skip ci]"
             git push
