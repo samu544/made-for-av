@@ -17,9 +17,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # Checkout Public Repository
       - name: Checkout Public Repo
         uses: actions/checkout@v4
 
+      # Checkout Private Repository
       - name: Checkout Private Repo
         uses: actions/checkout@v4
         with:
@@ -27,50 +29,68 @@ jobs:
           token: ${{ secrets.PRIVATE_REPO_TOKEN }}
           path: private-source
 
+      # Debug Repository Files
       - name: Debug Repository Files
         run: |
           echo "========== PUBLIC REPOSITORY =========="
-          echo "Current directory:"
           pwd
-          echo "Files:"
           ls -la
-          echo "Python files:"
-          find . -path "./private-source" -prune -o -type f -name "*.py" -print
+          find . -maxdepth 5 -type f -not -path "./.git/*" -not -path "./private-source/*" -print
 
           echo "========== PRIVATE REPOSITORY =========="
-          echo "Files:"
           ls -la private-source
-          echo "Python files:"
-          find private-source -type f -name "*.py" -print
+          find private-source -maxdepth 5 -type f -not -path "*/.git/*" -print
 
+          echo "========== SEARCH PYTHON FILE =========="
+          find private-source -type f -name "sk-file.py"
+
+      # Setup Python
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
+      # Install Dependencies
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
           pip install requests pycryptodome
 
+      # Verify Script
+      - name: Verify Python Script
+        working-directory: private-source
+        run: |
+          if [ ! -f "sk-file.py" ]; then
+            echo "ERROR: sk-file.py not found in Private Repository root."
+            find . -type f -name "*.py"
+            exit 1
+          fi
+
+          echo "Python script found!"
+
+      # Run Python
       - name: Run Python
+        working-directory: private-source
         run: |
           python sk-file.py --encode
 
+      # Check Output
       - name: Check Output
-        run: |
-          ls -lh output_encoded.txt
-          test -s output_encoded.txt
-
-      - name: Copy Output File
-        run: |
-          cp output_encoded.txt private-source/output_encoded.txt
-
-      - name: Push Output
         working-directory: private-source
         run: |
+          echo "Checking encoded output..."
+          ls -lh
           test -s output_encoded.txt
 
+      # Copy Output to Public Repository
+      - name: Copy Output File
+        run: |
+          cp private-source/output_encoded.txt output_encoded.txt
+          test -s output_encoded.txt
+
+      # Push Output to Public Repository
+      - name: Push Output
+        run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
