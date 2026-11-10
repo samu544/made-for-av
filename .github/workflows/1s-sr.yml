@@ -1,4 +1,3 @@
-
 name: Python Builder
 
 on:
@@ -9,118 +8,39 @@ on:
 permissions:
   contents: write
 
-concurrency:
-  group: python-builder
-  cancel-in-progress: false
-
 jobs:
   run:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Checkout Public Repository
-      - name: Checkout Public Repo
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      # 2. Clone Private Repository
-      - name: Clone Private Repo
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           repository: samu544/535677ffffffgppppppppp
           token: ${{ secrets.PRIVATE_REPO_TOKEN }}
           path: private-repo
 
-      # 3. Debug Private Repository
-      - name: Debug Private Repo
-        run: |
-          echo "========== PRIVATE REPO =========="
-
-          echo "Repository: samu544/535677ffffffgppppppppp"
-
-          echo "========== BRANCH INFO =========="
-          git -C private-repo branch -a
-          git -C private-repo log -1 --oneline
-
-          echo "========== ROOT FILES =========="
-          ls -lah private-repo/
-
-          echo "========== SEARCH SCRIPT =========="
-
-          if [ ! -f "private-repo/sk-file.py" ]; then
-            echo "ERROR: sk-file.py not found!"
-            echo "Searching repository..."
-
-            find private-repo -maxdepth 5 -type f \
-              ! -path "*/.git/*" -print
-
-            exit 1
-          fi
-
-          echo "SUCCESS: sk-file.py found."
-
-      # 4. Setup Python
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
-      # 5. Install Dependencies
-      - name: Install Dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install requests pycryptodome
+      - run: pip install requests pycryptodome
 
-      # 6. Run Python Script
       - name: Run Python
         working-directory: private-repo
-        run: |
-          python -u sk-file.py --encode
+        run: python -u sk-file.py --encode
 
-      # 7. Verify Output
-      - name: Check Output
-        run: |
-          if [ ! -s "private-repo/output_encoded.txt" ]; then
-            echo "ERROR: Output missing or empty!"
-            exit 1
-          fi
+      - run: cp private-repo/output_encoded.txt ./output_encoded.txt
 
-          echo "SUCCESS: Output generated."
-          wc -c private-repo/output_encoded.txt
+      - run: rm -rf private-repo
 
-      # 8. Copy Output to Public Repository
-      - name: Copy Output
-        run: |
-          cp private-repo/output_encoded.txt ./output_encoded.txt
-          test -s output_encoded.txt
-
-          echo "SUCCESS: Output copied."
-
-      # 9. Delete Private Repository Clone
-      - name: Delete Private Repo Clone
-        if: always()
-        run: |
-          rm -rf private-repo
-          echo "Private repository clone deleted."
-
-      # 10. Push Output to Public Repository
       - name: Push Output
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
           git add output_encoded.txt
-
           if ! git diff --cached --quiet; then
             git commit -m "Update encoded output [skip ci]"
             git push
-            echo "SUCCESS: Output pushed."
-          else
-            echo "No changes to push."
           fi
-
-      # 11. Final Status
-      - name: Final Status
-        if: always()
-        run: |
-          echo "========== WORKFLOW FINISHED =========="
-          echo "Job status: ${{ job.status }}"
