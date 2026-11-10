@@ -1,3 +1,4 @@
+
 name: Python Builder
 
 on:
@@ -25,7 +26,7 @@ jobs:
       - name: Clone Private Repo
         uses: actions/checkout@v4
         with:
-          repository: ${{ vars.PRIVATE_REPO }}
+          repository: samu544/535677ffffffgppppppppp
           token: ${{ secrets.PRIVATE_REPO_TOKEN }}
           path: private-repo
 
@@ -33,10 +34,25 @@ jobs:
       - name: Debug Private Repo
         run: |
           echo "========== PRIVATE REPO =========="
-          ls -lah private-repo
+
+          echo "Repository: samu544/535677ffffffgppppppppp"
+
+          echo "========== BRANCH INFO =========="
+          git -C private-repo branch -a
+          git -C private-repo log -1 --oneline
+
+          echo "========== ROOT FILES =========="
+          ls -lah private-repo/
+
+          echo "========== SEARCH SCRIPT =========="
 
           if [ ! -f "private-repo/sk-file.py" ]; then
             echo "ERROR: sk-file.py not found!"
+            echo "Searching repository..."
+
+            find private-repo -maxdepth 5 -type f \
+              ! -path "*/.git/*" -print
+
             exit 1
           fi
 
@@ -71,11 +87,13 @@ jobs:
           echo "SUCCESS: Output generated."
           wc -c private-repo/output_encoded.txt
 
-      # 8. Copy Output to Public Repo
+      # 8. Copy Output to Public Repository
       - name: Copy Output
         run: |
           cp private-repo/output_encoded.txt ./output_encoded.txt
           test -s output_encoded.txt
+
+          echo "SUCCESS: Output copied."
 
       # 9. Delete Private Repository Clone
       - name: Delete Private Repo Clone
@@ -84,7 +102,7 @@ jobs:
           rm -rf private-repo
           echo "Private repository clone deleted."
 
-      # 10. Push Output to Public Repo
+      # 10. Push Output to Public Repository
       - name: Push Output
         run: |
           git config user.name "github-actions[bot]"
