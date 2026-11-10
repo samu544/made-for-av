@@ -22,9 +22,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout Main Repository
+        uses: actions/checkout@v4
 
-      - uses: actions/checkout@v4
+      - name: Checkout Private Repository
+        uses: actions/checkout@v4
         with:
           repository: ${{ secrets.PRIVATE_REPO }}
           token: ${{ secrets.PRIVATE_REPO_TOKEN }}
@@ -37,10 +39,12 @@ jobs:
 
       - name: Run PHP
         working-directory: private-repo
-        run: php sk-file.php --encode
+        run: php -u sk-file.php --encode
 
       - name: Copy Output
-        run: cp private-repo/output_encoded.txt output1.txt
+        run: |
+          test -f private-repo/output_encoded.txt
+          cp private-repo/output_encoded.txt output1.txt
 
       - name: Remove Private Repo
         run: rm -rf private-repo
@@ -50,9 +54,11 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git add output2.txt
+          git add output1.txt
 
           if ! git diff --cached --quiet; then
             git commit -m "Update encoded output [skip ci]"
             git push
+          else
+            echo "No changes detected. Skipping push."
           fi
