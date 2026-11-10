@@ -21,37 +21,26 @@ jobs:
       - name: Checkout Public Repo
         uses: actions/checkout@v4
 
-      # 2. Checkout Private Repository
-      - name: Checkout Private Repo
+      # 2. Clone Private Repository
+      - name: Clone Private Repo
         uses: actions/checkout@v4
         with:
           repository: ${{ vars.PRIVATE_REPO }}
           token: ${{ secrets.PRIVATE_REPO_TOKEN }}
           path: private-repo
 
-      # 3. Debug Repository Files
-      - name: Debug Repository Files
+      # 3. Debug Private Repository
+      - name: Debug Private Repo
         run: |
-          echo "========== PUBLIC REPOSITORY =========="
-          pwd
-          ls -lah
-
-          echo "========== PRIVATE REPOSITORY =========="
+          echo "========== PRIVATE REPO =========="
           ls -lah private-repo
 
-          echo "========== PRIVATE ROOT FILES =========="
-          find private-repo -maxdepth 1 -type f -print
-
-          echo "========== PYTHON FILES =========="
-          find private-repo -type f -name "*.py"
-
-          echo "========== CHECK SCRIPT =========="
-          if [ -f "private-repo/sk-file.py" ]; then
-            echo "SUCCESS: sk-file.py found in repository root."
-          else
-            echo "ERROR: sk-file.py not found."
+          if [ ! -f "private-repo/sk-file.py" ]; then
+            echo "ERROR: sk-file.py not found!"
             exit 1
           fi
+
+          echo "SUCCESS: sk-file.py found."
 
       # 4. Setup Python
       - name: Setup Python
@@ -59,60 +48,43 @@ jobs:
         with:
           python-version: "3.12"
 
-      # 5. Python Version
-      - name: Python Version
-        run: |
-          python --version
-          pip --version
-
-      # 6. Install Dependencies
+      # 5. Install Dependencies
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
           pip install requests pycryptodome
-          pip list
 
-      # 7. Verify Script
-      - name: Verify Python Script
-        working-directory: private-repo
-        run: |
-          test -f sk-file.py
-          echo "Python script verified."
-
-      # 8. Run Python
+      # 6. Run Python Script
       - name: Run Python
         working-directory: private-repo
         run: |
           python -u sk-file.py --encode
 
-      # 9. Check Output
+      # 7. Verify Output
       - name: Check Output
-        working-directory: private-repo
         run: |
-          echo "========== OUTPUT CHECK =========="
-          ls -lah
-
-          if [ ! -s output_encoded.txt ]; then
+          if [ ! -s "private-repo/output_encoded.txt" ]; then
             echo "ERROR: Output missing or empty!"
             exit 1
           fi
 
           echo "SUCCESS: Output generated."
-          wc -c output_encoded.txt
+          wc -c private-repo/output_encoded.txt
 
-      # 10. Copy Output to Public Repository
-      - name: Copy Output File
+      # 8. Copy Output to Public Repo
+      - name: Copy Output
         run: |
-          cp private-repo/output_encoded.txt output_encoded.txt
+          cp private-repo/output_encoded.txt ./output_encoded.txt
           test -s output_encoded.txt
 
-      # 11. Git Debug
-      - name: Git Debug
+      # 9. Delete Private Repository Clone
+      - name: Delete Private Repo Clone
+        if: always()
         run: |
-          git status
-          git diff --stat
+          rm -rf private-repo
+          echo "Private repository clone deleted."
 
-      # 12. Push Output
+      # 10. Push Output to Public Repo
       - name: Push Output
         run: |
           git config user.name "github-actions[bot]"
@@ -128,7 +100,7 @@ jobs:
             echo "No changes to push."
           fi
 
-      # 13. Final Status
+      # 11. Final Status
       - name: Final Status
         if: always()
         run: |
