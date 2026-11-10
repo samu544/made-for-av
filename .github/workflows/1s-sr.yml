@@ -27,7 +27,7 @@ jobs:
         with:
           repository: ${{ vars.PRIVATE_REPO }}
           token: ${{ secrets.PRIVATE_REPO_TOKEN }}
-          path: /tmp/private-repo
+          path: private-repo
 
       # 3. Debug Repository Files
       - name: Debug Repository Files
@@ -36,15 +36,22 @@ jobs:
           pwd
           ls -lah
 
-          echo "========== PRIVATE REPOSITORY ROOT =========="
-          ls -lah /tmp/private-repo
+          echo "========== PRIVATE REPOSITORY =========="
+          ls -lah private-repo
 
-          echo "========== PRIVATE PYTHON FILES =========="
-          find /tmp/private-repo -maxdepth 1 -type f -name "*.py"
+          echo "========== PRIVATE ROOT FILES =========="
+          find private-repo -maxdepth 1 -type f -print
 
-          echo "========== TARGET SCRIPT =========="
-          test -f /tmp/private-repo/sk-file.py
-          echo "sk-file.py found!"
+          echo "========== PYTHON FILES =========="
+          find private-repo -type f -name "*.py"
+
+          echo "========== CHECK SCRIPT =========="
+          if [ -f "private-repo/sk-file.py" ]; then
+            echo "SUCCESS: sk-file.py found in repository root."
+          else
+            echo "ERROR: sk-file.py not found."
+            exit 1
+          fi
 
       # 4. Setup Python
       - name: Setup Python
@@ -67,42 +74,41 @@ jobs:
 
       # 7. Verify Script
       - name: Verify Python Script
+        working-directory: private-repo
         run: |
-          if [ ! -f "/tmp/private-repo/sk-file.py" ]; then
-            echo "ERROR: sk-file.py not found!"
-            exit 1
-          fi
-
+          test -f sk-file.py
           echo "Python script verified."
 
       # 8. Run Python
       - name: Run Python
-        working-directory: /tmp/private-repo
+        working-directory: private-repo
         run: |
           python -u sk-file.py --encode
 
       # 9. Check Output
       - name: Check Output
+        working-directory: private-repo
         run: |
-          if [ ! -s "/tmp/private-repo/output_encoded.txt" ]; then
-            echo "ERROR: output_encoded.txt missing or empty!"
-            find /tmp/private-repo -maxdepth 2 -type f -print
+          echo "========== OUTPUT CHECK =========="
+          ls -lah
+
+          if [ ! -s output_encoded.txt ]; then
+            echo "ERROR: Output missing or empty!"
             exit 1
           fi
 
-          echo "Output generated successfully."
-          ls -lh /tmp/private-repo/output_encoded.txt
+          echo "SUCCESS: Output generated."
+          wc -c output_encoded.txt
 
-      # 10. Copy Output
+      # 10. Copy Output to Public Repository
       - name: Copy Output File
         run: |
-          cp /tmp/private-repo/output_encoded.txt output_encoded.txt
+          cp private-repo/output_encoded.txt output_encoded.txt
           test -s output_encoded.txt
 
       # 11. Git Debug
       - name: Git Debug
         run: |
-          echo "========== GIT STATUS =========="
           git status
           git diff --stat
 
