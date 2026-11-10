@@ -17,78 +17,96 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # Checkout Public Repository
+      # 1. Checkout Public Repository
       - name: Checkout Public Repo
         uses: actions/checkout@v4
 
-      # Checkout Private Repository
+      # 2. Checkout Private Repository
       - name: Checkout Private Repo
         uses: actions/checkout@v4
         with:
           repository: ${{ vars.PRIVATE_REPO }}
           token: ${{ secrets.PRIVATE_REPO_TOKEN }}
-          path: private-source
+          path: /tmp/private-repo
 
-      # Debug Repository Files
+      # 3. Debug Repository Files
       - name: Debug Repository Files
         run: |
           echo "========== PUBLIC REPOSITORY =========="
           pwd
-          ls -la
-          find . -maxdepth 5 -type f -not -path "./.git/*" -not -path "./private-source/*" -print
+          ls -lah
 
-          echo "========== PRIVATE REPOSITORY =========="
-          ls -la private-source
-          find private-source -maxdepth 5 -type f -not -path "*/.git/*" -print
+          echo "========== PRIVATE REPOSITORY ROOT =========="
+          ls -lah /tmp/private-repo
 
-          echo "========== SEARCH PYTHON FILE =========="
-          find private-source -type f -name "sk-file.py"
+          echo "========== PRIVATE PYTHON FILES =========="
+          find /tmp/private-repo -maxdepth 1 -type f -name "*.py"
 
-      # Setup Python
+          echo "========== TARGET SCRIPT =========="
+          test -f /tmp/private-repo/sk-file.py
+          echo "sk-file.py found!"
+
+      # 4. Setup Python
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
-      # Install Dependencies
+      # 5. Python Version
+      - name: Python Version
+        run: |
+          python --version
+          pip --version
+
+      # 6. Install Dependencies
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
           pip install requests pycryptodome
+          pip list
 
-      # Verify Script
+      # 7. Verify Script
       - name: Verify Python Script
-        working-directory: private-source
         run: |
-          if [ ! -f "sk-file.py" ]; then
-            echo "ERROR: sk-file.py not found in Private Repository root."
-            find . -type f -name "*.py"
+          if [ ! -f "/tmp/private-repo/sk-file.py" ]; then
+            echo "ERROR: sk-file.py not found!"
             exit 1
           fi
 
-          echo "Python script found!"
+          echo "Python script verified."
 
-      # Run Python
+      # 8. Run Python
       - name: Run Python
-        working-directory: private-source
+        working-directory: /tmp/private-repo
         run: |
-          python sk-file.py --encode
+          python -u sk-file.py --encode
 
-      # Check Output
+      # 9. Check Output
       - name: Check Output
-        working-directory: private-source
         run: |
-          echo "Checking encoded output..."
-          ls -lh
-          test -s output_encoded.txt
+          if [ ! -s "/tmp/private-repo/output_encoded.txt" ]; then
+            echo "ERROR: output_encoded.txt missing or empty!"
+            find /tmp/private-repo -maxdepth 2 -type f -print
+            exit 1
+          fi
 
-      # Copy Output to Public Repository
+          echo "Output generated successfully."
+          ls -lh /tmp/private-repo/output_encoded.txt
+
+      # 10. Copy Output
       - name: Copy Output File
         run: |
-          cp private-source/output_encoded.txt output_encoded.txt
+          cp /tmp/private-repo/output_encoded.txt output_encoded.txt
           test -s output_encoded.txt
 
-      # Push Output to Public Repository
+      # 11. Git Debug
+      - name: Git Debug
+        run: |
+          echo "========== GIT STATUS =========="
+          git status
+          git diff --stat
+
+      # 12. Push Output
       - name: Push Output
         run: |
           git config user.name "github-actions[bot]"
@@ -99,6 +117,14 @@ jobs:
           if ! git diff --cached --quiet; then
             git commit -m "Update encoded output [skip ci]"
             git push
+            echo "SUCCESS: Output pushed."
           else
             echo "No changes to push."
           fi
+
+      # 13. Final Status
+      - name: Final Status
+        if: always()
+        run: |
+          echo "========== WORKFLOW FINISHED =========="
+          echo "Job status: ${{ job.status }}"
