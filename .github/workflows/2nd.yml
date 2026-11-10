@@ -22,11 +22,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Main Repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Checkout Private Repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           repository: ${{ secrets.PRIVATE_REPO }}
           token: ${{ secrets.PRIVATE_REPO_TOKEN }}
@@ -39,12 +37,10 @@ jobs:
 
       - name: Run PHP
         working-directory: private-repo
-        run: php -u sk-file.php --encode
+        run: php sk-file.php --encode
 
       - name: Copy Output
-        run: |
-          test -f private-repo/output_encoded.txt
-          cp private-repo/output_encoded.txt output1.txt
+        run: cp private-repo/output_encoded.txt output1.txt
 
       - name: Remove Private Repo
         run: rm -rf private-repo
@@ -59,6 +55,4 @@ jobs:
           if ! git diff --cached --quiet; then
             git commit -m "Update encoded output [skip ci]"
             git push
-          else
-            echo "No changes detected. Skipping push."
           fi
