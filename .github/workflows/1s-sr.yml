@@ -1,12 +1,23 @@
+
 name: Python Builder
 
 on:
   workflow_dispatch:
+    inputs:
+      queue_id:
+        description: Queue ID
+        required: false
+        type: string
+
   schedule:
     - cron: "0 * * * *"
 
 permissions:
   contents: write
+
+concurrency:
+  group: global-workflow-queue
+  cancel-in-progress: false
 
 jobs:
   run:
@@ -31,7 +42,7 @@ jobs:
         working-directory: private-repo
         run: python -u sk-file.py --encode
 
-      - run: cp private-repo/output_encoded.txt output_encoded.txt
+      - run: cp private-repo/output_encoded.txt output1.txt
 
       - run: rm -rf private-repo
 
@@ -39,7 +50,9 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add output_encoded.txt
+
+          git add output1.txt
+
           if ! git diff --cached --quiet; then
             git commit -m "Update encoded output [skip ci]"
             git push
