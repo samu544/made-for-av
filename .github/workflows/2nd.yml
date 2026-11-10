@@ -1,0 +1,58 @@
+name: PHP Builder
+
+run-name: Queue ${{ inputs.queue_id }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      queue_id:
+        description: Queue ID
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: global-workflow-queue
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ secrets.PRIVATE_REPO }}
+          token: ${{ secrets.PRIVATE_REPO_TOKEN }}
+          path: private-repo
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.3"
+
+      - name: Run PHP
+        working-directory: private-repo
+        run: php sk-file.php --encode
+
+      - name: Copy Output
+        run: cp private-repo/output_encoded.txt output1.txt
+
+      - name: Remove Private Repo
+        run: rm -rf private-repo
+
+      - name: Push Output
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add output1.txt
+
+          if ! git diff --cached --quiet; then
+            git commit -m "Update encoded output [skip ci]"
+            git push
+          fi
