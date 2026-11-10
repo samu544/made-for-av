@@ -1,6 +1,8 @@
 
 name: Python Builder
 
+run-name: Queue ${{ inputs.queue_id }}
+
 on:
   workflow_dispatch:
     inputs:
