@@ -23,46 +23,56 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # Main repository
       - uses: actions/checkout@v4
 
+      # Private repository
       - uses: actions/checkout@v4
         with:
           repository: ${{ secrets.PRIVATE_REPO }}
           token: ${{ secrets.PRIVATE_REPO_TOKEN }}
           path: private-repo
 
+      # PHP setup
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
           php-version: "8.3"
 
-      - name: Run PHP
+      # Run PHP builder
+      - name: Run PHP Builder
         working-directory: private-repo
         run: php sp-x.php
 
+      # Copy generated output
       - name: Copy Output
         run: cp private-repo/all.txt output.txt
 
+      # Remove private repository
       - name: Remove Private Repo
         run: rm -rf private-repo
 
+      # PHP Encoder from GitHub Secret
       - name: Encode Output
         env:
           ENCODE: "true"
-          OUTPUT_DIR: ${{ github.workspace }}/output2
-          PYTHON_SCRIPT: ${{ secrets.x7Kp9mQ44 }}
+          INPUT_FILE: ${{ github.workspace }}/output.txt
+          OUTPUT_DIR: ${{ github.workspace }}/output
+          PHP_SCRIPT: ${{ secrets.x7Kp9mQ44 }}
         run: |
-          mkdir -p "$OUTPUT_DIR"
-          python -c "$PYTHON_SCRIPT"
+          php -r 'eval("?>" . getenv("PHP_SCRIPT"));'
 
+      # Push output
       - name: Push Output
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git add output.txt output2/
+          git add output.txt output/
 
           if ! git diff --cached --quiet; then
             git commit -m "Update encoded output [skip ci]"
             git push
+          else
+            echo "No changes to push"
           fi
