@@ -42,9 +42,7 @@ jobs:
       # Run PHP builder
       - name: Run PHP Builder
         working-directory: private-repo
-        run: php sp-x.php
-
-      # Copy generated output
+        run: php sp-x.php > /dev/null 2>&1  # Copy generated output
       - name: Copy Output
         run: cp private-repo/all.txt output.txt
 
