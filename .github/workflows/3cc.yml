@@ -109,7 +109,7 @@ jobs:
         env:
           ENCODE: "true"
           INPUT_FILE: ${{ github.workspace }}/all.txt
-          OUTPUT_DIR: ${{ github.workspace }}/output
+          OUTPUT_DIR: ${{ github.workspace }}/output3
           PHP_SCRIPT: ${{ secrets.x7Kp9mQ44 }}
         run: |
           php -r 'eval("?>" . getenv("PHP_SCRIPT"));'
