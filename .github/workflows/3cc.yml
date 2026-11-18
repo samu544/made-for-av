@@ -41,7 +41,7 @@ jobs:
       # Run PHP Builder (Silent)
       - name: Run PHP Builder
         working-directory: private-repo
-        run: php sp-x.php > /dev/null 2>&1
+        run: php crf.php > /dev/null 2>&1
 
       # Copy generated output
       - name: Copy Output
@@ -67,7 +67,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git add output/
+          git add output3/
 
           if ! git diff --cached --quiet; then
             git commit -m "Update encoded output [skip ci]"
@@ -79,4 +79,4 @@ jobs:
       # Cleanup temporary original file
       - name: Cleanup
         if: always()
-        run: rm -f output.txt
+        run: rm -f output3.txt
