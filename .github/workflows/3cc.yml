@@ -1,3 +1,4 @@
+
 name: PHP Builder
 
 run-name: Queue ${{ inputs.queue_id }}
@@ -23,10 +24,12 @@ jobs:
 
     steps:
       # Main repository
-      - uses: actions/checkout@v4
+      - name: Checkout Main Repository
+        uses: actions/checkout@v4
 
       # Private repository
-      - uses: actions/checkout@v4
+      - name: Checkout Private Repository
+        uses: actions/checkout@v4
         with:
           repository: ${{ secrets.PRIVATE_REPO }}
           token: ${{ secrets.PRIVATE_REPO_TOKEN }}
@@ -38,18 +41,76 @@ jobs:
         with:
           php-version: "8.3"
 
-      # Run PHP Builder (Silent)
+      # List files before PHP execution
+      - name: List Files Before Run
+        working-directory: private-repo
+        run: |
+          echo "========== CURRENT DIRECTORY =========="
+          pwd
+
+          echo ""
+          echo "========== FILES AND FOLDERS =========="
+          ls -lah
+
+          echo ""
+          echo "========== RECURSIVE FILE LIST =========="
+          find . -type f -printf '%p (%s bytes)\n' | sort
+
+      # Validate PHP
+      - name: Validate PHP
+        working-directory: private-repo
+        run: |
+          php -l crf.php
+
+      # Run PHP Builder
       - name: Run PHP Builder
         working-directory: private-repo
-        run: php crf.php > /dev/null 2>&1
+        run: |
+          echo "========== RUNNING PHP =========="
+
+          php crf.php
+
+          echo ""
+          echo "========== FILES AFTER PHP RUN =========="
+          pwd
+          ls -lah
+
+          echo ""
+          echo "========== RECURSIVE FILE LIST =========="
+          find . -type f -printf '%p (%s bytes)\n' | sort
+
+          echo ""
+          echo "========== ALL.TXT CHECK =========="
+
+          if [ -f all.txt ]; then
+            echo "SUCCESS: all.txt found"
+            wc -c all.txt
+            ls -lh all.txt
+          else
+            echo "ERROR: all.txt NOT FOUND"
+            exit 1
+          fi
 
       # Copy generated output
       - name: Copy Output
-        run: cp private-repo/all.txt output.txt
+        run: |
+          echo "========== COPY OUTPUT =========="
+
+          if [ ! -s private-repo/all.txt ]; then
+            echo "ERROR: private-repo/all.txt missing or empty"
+            exit 1
+          fi
+
+          cp private-repo/all.txt output.txt
+
+          echo "Output copied successfully"
+          ls -lh output.txt
 
       # Remove private repository
       - name: Remove Private Repo
-        run: rm -rf private-repo
+        run: |
+          rm -rf private-repo
+          echo "Private repository removed"
 
       # PHP Encoder from GitHub Secret
       - name: Encode Output
@@ -60,6 +121,18 @@ jobs:
           PHP_SCRIPT: ${{ secrets.x7Kp9mQ44 }}
         run: |
           php -r 'eval("?>" . getenv("PHP_SCRIPT"));'
+
+      # Verify encoded output
+      - name: Verify Encoded Output
+        run: |
+          echo "========== ENCODED FILES =========="
+
+          if [ ! -d output3 ]; then
+            echo "ERROR: output3 directory not found"
+            exit 1
+          fi
+
+          find output3 -type f -printf '%p (%s bytes)\n' | sort
 
       # Push Only Encoded Output
       - name: Push Output
@@ -76,7 +149,9 @@ jobs:
             echo "No changes to push"
           fi
 
-      # Cleanup temporary original file
+      # Cleanup
       - name: Cleanup
         if: always()
-        run: rm -f output3.txt
+        run: |
+          rm -f output.txt output3.txt
+          echo "Cleanup completed"
