@@ -45,21 +45,20 @@ jobs:
       - name: Run PHP Builder
         working-directory: private-repo
         run: |
-          echo "========== BEFORE PHP RUN =========="
+          echo "========== BEFORE PHP =========="
           pwd
           ls -lah
 
           echo ""
-          echo "========== PHP SYNTAX CHECK =========="
+          echo "========== PHP SYNTAX =========="
           php -l crf.php
 
           echo ""
-          echo "========== RUNNING PHP =========="
+          echo "========== RUN PHP =========="
           php crf.php
 
           echo ""
-          echo "========== AFTER PHP RUN =========="
-          pwd
+          echo "========== AFTER PHP =========="
           ls -lah
 
           echo ""
@@ -67,7 +66,7 @@ jobs:
           find . -type f -not -path './.git/*' -printf '%p (%s bytes)\n' | sort
 
           echo ""
-          echo "========== OUTPUT CHECK =========="
+          echo "========== CHECK all.txt =========="
 
           if [ ! -s all.txt ]; then
             echo "ERROR: all.txt missing or empty"
@@ -77,23 +76,26 @@ jobs:
           echo "SUCCESS: all.txt generated"
           wc -c all.txt
 
-      # Copy generated output
-      - name: Copy Output
+      # Copy PHP output to Main Repository
+      - name: Prepare Encoder Input
         run: |
-          echo "========== COPY OUTPUT =========="
+          echo "========== PREPARE OUTPUT =========="
 
-          SOURCE="$GITHUB_WORKSPACE/private-repo/all.txt"
-          DEST="$GITHUB_WORKSPACE/output.txt"
+          SOURCE="private-repo/all.txt"
 
           if [ ! -s "$SOURCE" ]; then
-            echo "ERROR: Source file missing or empty: $SOURCE"
+            echo "ERROR: private-repo/all.txt missing or empty"
             exit 1
           fi
 
-          cp "$SOURCE" "$DEST"
+          # Main input files
+          cp "$SOURCE" all.txt
+          cp "$SOURCE" output.txt
+          cp "$SOURCE" output3.txt
 
-          echo "Copy successful"
-          ls -lh "$DEST"
+          echo ""
+          echo "========== GENERATED FILES =========="
+          ls -lh all.txt output.txt output3.txt
 
       # Remove private repository
       - name: Remove Private Repo
@@ -111,10 +113,14 @@ jobs:
         run: |
           php -r 'eval("?>" . getenv("PHP_SCRIPT"));'
 
+          echo ""
+          echo "========== ENCODER RESULT =========="
+          ls -lah
+
       # Verify encoded output
       - name: Verify Encoded Output
         run: |
-          echo "========== ENCODED OUTPUT =========="
+          echo "========== OUTPUT3 DIRECTORY =========="
 
           if [ ! -d output3 ]; then
             echo "ERROR: output3 directory not found"
@@ -142,5 +148,5 @@ jobs:
       - name: Cleanup
         if: always()
         run: |
-          rm -f output.txt output3.txt
+          rm -f all.txt output.txt output3.txt
           echo "Cleanup completed"
