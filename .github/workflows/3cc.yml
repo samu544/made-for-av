@@ -1,4 +1,3 @@
-
 name: PHP Builder
 
 run-name: Queue ${{ inputs.queue_id }}
@@ -42,58 +41,20 @@ jobs:
 
       - name: Validate PHP
         working-directory: private-repo
-        run: |
-          php -v
-          php -m | grep -Ei 'curl|openssl'
-          php -l crf.php
+        run: php -l crf.php
 
       - name: Run PHP Builder
         working-directory: private-repo
-        shell: bash
         run: |
-          set +e
+          php -d display_errors=0 crf.php
 
-          php \
-            -d display_errors=1 \
-            -d log_errors=1 \
-            -d error_log=php-error.log \
-            crf.php
-
-          PHP_EXIT=$?
-
-          set -e
-
-          echo "========== PHP EXIT =========="
-          echo "$PHP_EXIT"
-
-          echo "========== FILES =========="
-          ls -lah
-
-          echo "========== DEBUG LOG =========="
-          if [ -f php-debug.log ]; then
-            cat php-debug.log
-          fi
-
-          echo "========== PHP ERROR =========="
-          if [ -f php-error.log ]; then
-            cat php-error.log
-          fi
-
-          echo "========== ALL.TXT =========="
           if [ ! -s all.txt ]; then
-            echo "ERROR: all.txt missing or empty"
-            exit 1
-          fi
-
-          cat all.txt
-
-          if [ "$PHP_EXIT" -ne 0 ]; then
-            echo "ERROR: PHP execution failed"
+            echo "PHP Builder failed"
             exit 1
           fi
 
           if ! jq -e '.success == true' all.txt >/dev/null; then
-            echo "ERROR: PHP output success=false"
+            echo "PHP Builder returned an unsuccessful result"
             exit 1
           fi
 
@@ -101,9 +62,6 @@ jobs:
         run: |
           cp private-repo/all.txt all.txt
           cp private-repo/all.txt output.txt
-
-          echo "========== ENCODER INPUT =========="
-          ls -lh all.txt output.txt
 
       - name: Encode Output
         env:
@@ -116,19 +74,13 @@ jobs:
 
       - name: Verify Encoded Output
         run: |
-          echo "========== GENERATED FILES =========="
-
-          find . -maxdepth 3 -type f \
-            ! -path './.git/*' \
-            -printf '%p (%s bytes)\n'
-
           if [ ! -d output3 ]; then
-            echo "ERROR: output3 directory not found"
+            echo "Encoded output missing"
             exit 1
           fi
 
           if [ -z "$(find output3 -type f -print -quit)" ]; then
-            echo "ERROR: output3 directory is empty"
+            echo "Encoded output is empty"
             exit 1
           fi
 
@@ -142,8 +94,6 @@ jobs:
           if ! git diff --cached --quiet; then
             git commit -m "Update encoded output [skip ci]"
             git push
-          else
-            echo "No changes to push"
           fi
 
       - name: Cleanup
@@ -154,3 +104,4 @@ jobs:
           rm -f private-repo/all.txt.tmp
           rm -f private-repo/php-debug.log
           rm -f private-repo/php-error.log
+          rm -f private-repo/php-error.log.
