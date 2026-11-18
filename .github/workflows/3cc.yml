@@ -45,7 +45,7 @@ jobs:
 
       # Copy generated output
       - name: Copy Output
-        run: cp private-repo/all.txt output3.txt
+        run: cp all.txt output3.txt
 
       # Remove private repository
       - name: Remove Private Repo
