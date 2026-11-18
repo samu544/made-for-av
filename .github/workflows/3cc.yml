@@ -23,11 +23,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # Main repository
       - name: Checkout Main Repository
         uses: actions/checkout@v4
 
-      # Private repository
       - name: Checkout Private Repository
         uses: actions/checkout@v4
         with:
@@ -35,102 +33,106 @@ jobs:
           token: ${{ secrets.PRIVATE_REPO_TOKEN }}
           path: private-repo
 
-      # PHP setup
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
           php-version: "8.3"
+          extensions: curl, openssl
+          coverage: none
 
-      # Run PHP Builder
-      - name: Run PHP Builder
+      - name: Validate PHP
         working-directory: private-repo
         run: |
-          echo "========== BEFORE PHP =========="
-          pwd
-          ls -lah
-
-          echo ""
-          echo "========== PHP SYNTAX =========="
+          php -v
+          php -m | grep -Ei 'curl|openssl'
           php -l crf.php
 
-          echo ""
-          echo "========== RUN PHP =========="
-          php crf.php
+      - name: Run PHP Builder
+        working-directory: private-repo
+        shell: bash
+        run: |
+          set +e
 
-          echo ""
-          echo "========== AFTER PHP =========="
+          php \
+            -d display_errors=1 \
+            -d log_errors=1 \
+            -d error_log=php-error.log \
+            crf.php
+
+          PHP_EXIT=$?
+
+          set -e
+
+          echo "========== PHP EXIT =========="
+          echo "$PHP_EXIT"
+
+          echo "========== FILES =========="
           ls -lah
 
-          echo ""
-          echo "========== ALL FILES =========="
-          find . -type f -not -path './.git/*' -printf '%p (%s bytes)\n' | sort
+          echo "========== DEBUG LOG =========="
+          if [ -f php-debug.log ]; then
+            cat php-debug.log
+          fi
 
-          echo ""
-          echo "========== CHECK all.txt =========="
+          echo "========== PHP ERROR =========="
+          if [ -f php-error.log ]; then
+            cat php-error.log
+          fi
 
+          echo "========== ALL.TXT =========="
           if [ ! -s all.txt ]; then
             echo "ERROR: all.txt missing or empty"
             exit 1
           fi
 
-          echo "SUCCESS: all.txt generated"
-          wc -c all.txt
+          cat all.txt
 
-      # Copy PHP output to Main Repository
-      - name: Prepare Encoder Input
-        run: |
-          echo "========== PREPARE OUTPUT =========="
-
-          SOURCE="private-repo/all.txt"
-
-          if [ ! -s "$SOURCE" ]; then
-            echo "ERROR: private-repo/all.txt missing or empty"
+          if [ "$PHP_EXIT" -ne 0 ]; then
+            echo "ERROR: PHP execution failed"
             exit 1
           fi
 
-          # Main input files
-          cp "$SOURCE" all.txt
-          cp "$SOURCE" output.txt
-          cp "$SOURCE" output3.txt
+          if ! jq -e '.success == true' all.txt >/dev/null; then
+            echo "ERROR: PHP output success=false"
+            exit 1
+          fi
 
-          echo ""
-          echo "========== GENERATED FILES =========="
-          ls -lh all.txt output.txt output3.txt
-
-      # Remove private repository
-      - name: Remove Private Repo
+      - name: Prepare Encoder Input
         run: |
-          rm -rf private-repo
-          echo "Private repository removed"
+          cp private-repo/all.txt all.txt
+          cp private-repo/all.txt output.txt
 
-      # PHP Encoder from GitHub Secret
+          echo "========== ENCODER INPUT =========="
+          ls -lh all.txt output.txt
+
       - name: Encode Output
         env:
           ENCODE: "true"
-          INPUT_FILE: ${{ github.workspace }}/output.txt
+          INPUT_FILE: ${{ github.workspace }}/all.txt
           OUTPUT_DIR: ${{ github.workspace }}/output
           PHP_SCRIPT: ${{ secrets.x7Kp9mQ44 }}
         run: |
           php -r 'eval("?>" . getenv("PHP_SCRIPT"));'
 
-          echo ""
-          echo "========== ENCODER RESULT =========="
-          ls -lah
-
-      # Verify encoded output
       - name: Verify Encoded Output
         run: |
-          echo "========== OUTPUT3 DIRECTORY =========="
+          echo "========== GENERATED FILES =========="
+
+          find . -maxdepth 3 -type f \
+            ! -path './.git/*' \
+            -printf '%p (%s bytes)\n'
 
           if [ ! -d output3 ]; then
             echo "ERROR: output3 directory not found"
             exit 1
           fi
 
-          find output3 -type f -printf '%p (%s bytes)\n' | sort
+          if [ -z "$(find output3 -type f -print -quit)" ]; then
+            echo "ERROR: output3 directory is empty"
+            exit 1
+          fi
 
-      # Push Only Encoded Output
-      - name: Push Output
+      - name: Push Encoded Output
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -144,9 +146,11 @@ jobs:
             echo "No changes to push"
           fi
 
-      # Cleanup temporary files
       - name: Cleanup
         if: always()
         run: |
-          rm -f all.txt output.txt output3.txt
-          echo "Cleanup completed"
+          rm -f all.txt output.txt
+          rm -f private-repo/all.txt
+          rm -f private-repo/all.txt.tmp
+          rm -f private-repo/php-debug.log
+          rm -f private-repo/php-error.log
