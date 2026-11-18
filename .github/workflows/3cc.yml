@@ -1,3 +1,4 @@
+
 name: PHP Builder
 
 run-name: Queue ${{ inputs.queue_id }}
@@ -22,36 +23,55 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # Main repository
-      - uses: actions/checkout@v4
+      - name: Checkout Main Repository
+        uses: actions/checkout@v4
 
-      # Private repository
-      - uses: actions/checkout@v4
+      - name: Checkout Private Repository
+        uses: actions/checkout@v4
         with:
           repository: ${{ secrets.PRIVATE_REPO }}
           token: ${{ secrets.PRIVATE_REPO_TOKEN }}
           path: private-repo
 
-      # PHP setup
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
           php-version: "8.3"
 
-      # Run PHP Builder (Silent)
       - name: Run PHP Builder
         working-directory: private-repo
-        run: php crf.php > /dev/null 2>&1
+        run: |
+          echo "Starting PHP Builder..."
 
-      # Copy generated output
+          php -l crf.php
+
+          php crf.php
+
+          echo "Checking generated output..."
+
+          if [ ! -f all.txt ]; then
+            echo "::error::PHP did not generate all.txt"
+            echo "Directory contents:"
+            ls -la
+            exit 1
+          fi
+
+          if [ ! -s all.txt ]; then
+            echo "::error::all.txt is empty"
+            exit 1
+          fi
+
+          echo "PHP Builder completed successfully."
+          ls -lh all.txt
+
       - name: Copy Output
-        run: cp private-repo/all.txt output.txt
+        run: |
+          cp private-repo/all.txt output.txt
+          test -s output.txt
 
-      # Remove private repository
-      - name: Remove Private Repo
+      - name: Remove Private Repository
         run: rm -rf private-repo
 
-      # PHP Encoder from GitHub Secret
       - name: Encode Output
         env:
           ENCODE: "true"
@@ -61,8 +81,17 @@ jobs:
         run: |
           php -r 'eval("?>" . getenv("PHP_SCRIPT"));'
 
-      # Push Only Encoded Output
-      - name: Push Output
+      - name: Verify Encoded Output
+        run: |
+          if [ ! -d output3 ]; then
+            echo "::error::output3 directory not found"
+            ls -la
+            exit 1
+          fi
+
+          ls -lah output3/
+
+      - name: Push Only Encoded Output
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -76,7 +105,8 @@ jobs:
             echo "No changes to push"
           fi
 
-      # Cleanup temporary original file
       - name: Cleanup
         if: always()
-        run: rm -f output3.txt
+        run: |
+          rm -f output.txt output3.txt
+          rm -rf private-repo
