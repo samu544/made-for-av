@@ -1,3 +1,4 @@
+
 name: PHP Builder
 
 run-name: Queue ${{ inputs.queue_id }}
@@ -23,10 +24,12 @@ jobs:
 
     steps:
       # Main repository
-      - uses: actions/checkout@v4
+      - name: Checkout Main Repository
+        uses: actions/checkout@v4
 
       # Private repository
-      - uses: actions/checkout@v4
+      - name: Checkout Private Repository
+        uses: actions/checkout@v4
         with:
           repository: ${{ secrets.PRIVATE_REPO }}
           token: ${{ secrets.PRIVATE_REPO_TOKEN }}
@@ -38,18 +41,65 @@ jobs:
         with:
           php-version: "8.3"
 
-      # Run PHP Builder (Silent)
+      # Run PHP Builder
       - name: Run PHP Builder
         working-directory: private-repo
-        run: php crf.php > /dev/null 2>&1
+        run: |
+          echo "========== BEFORE PHP RUN =========="
+          pwd
+          ls -lah
+
+          echo ""
+          echo "========== PHP SYNTAX CHECK =========="
+          php -l crf.php
+
+          echo ""
+          echo "========== RUNNING PHP =========="
+          php crf.php
+
+          echo ""
+          echo "========== AFTER PHP RUN =========="
+          pwd
+          ls -lah
+
+          echo ""
+          echo "========== ALL FILES =========="
+          find . -type f -not -path './.git/*' -printf '%p (%s bytes)\n' | sort
+
+          echo ""
+          echo "========== OUTPUT CHECK =========="
+
+          if [ ! -s all.txt ]; then
+            echo "ERROR: all.txt missing or empty"
+            exit 1
+          fi
+
+          echo "SUCCESS: all.txt generated"
+          wc -c all.txt
 
       # Copy generated output
       - name: Copy Output
-        run: cp all.txt output3.txt
+        run: |
+          echo "========== COPY OUTPUT =========="
+
+          SOURCE="$GITHUB_WORKSPACE/private-repo/all.txt"
+          DEST="$GITHUB_WORKSPACE/output.txt"
+
+          if [ ! -s "$SOURCE" ]; then
+            echo "ERROR: Source file missing or empty: $SOURCE"
+            exit 1
+          fi
+
+          cp "$SOURCE" "$DEST"
+
+          echo "Copy successful"
+          ls -lh "$DEST"
 
       # Remove private repository
       - name: Remove Private Repo
-        run: rm -rf private-repo
+        run: |
+          rm -rf private-repo
+          echo "Private repository removed"
 
       # PHP Encoder from GitHub Secret
       - name: Encode Output
@@ -60,6 +110,18 @@ jobs:
           PHP_SCRIPT: ${{ secrets.x7Kp9mQ44 }}
         run: |
           php -r 'eval("?>" . getenv("PHP_SCRIPT"));'
+
+      # Verify encoded output
+      - name: Verify Encoded Output
+        run: |
+          echo "========== ENCODED OUTPUT =========="
+
+          if [ ! -d output3 ]; then
+            echo "ERROR: output3 directory not found"
+            exit 1
+          fi
+
+          find output3 -type f -printf '%p (%s bytes)\n' | sort
 
       # Push Only Encoded Output
       - name: Push Output
@@ -76,7 +138,9 @@ jobs:
             echo "No changes to push"
           fi
 
-      # Cleanup temporary original file
+      # Cleanup temporary files
       - name: Cleanup
         if: always()
-        run: rm -f output3.txt
+        run: |
+          rm -f output.txt output3.txt
+          echo "Cleanup completed"
