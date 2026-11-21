@@ -1,0 +1,179 @@
+name: PHP Builder
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: global-workflow-queue
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+
+    steps:
+      # =================================
+      # Main Repository
+      # =================================
+
+      - name: Checkout Main Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # =================================
+      # Private Repository
+      # =================================
+
+      - name: Checkout Private Repository
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ secrets.PRIVATE_REPO }}
+          token: ${{ secrets.PRIVATE_REPO_TOKEN }}
+          path: private-repo
+
+      # =================================
+      # PHP Setup
+      # =================================
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.3"
+          extensions: curl, openssl
+          coverage: none
+
+      # =================================
+      # 1. CRF Builder
+      # Output: output3/
+      # =================================
+
+      - name: Validate CRF PHP
+        working-directory: private-repo
+        run: php -l crf.php
+
+      - name: Run CRF Builder
+        working-directory: private-repo
+        run: |
+          php -d display_errors=0 crf.php
+
+          if [ ! -s all.txt ]; then
+            echo "CRF Builder failed"
+            exit 1
+          fi
+
+          if ! jq -e '.success == true' all.txt >/dev/null; then
+            echo "CRF Builder returned an unsuccessful result"
+            exit 1
+          fi
+
+      - name: Prepare CRF Encoder Input
+        run: |
+          cp private-repo/all.txt all.txt
+
+      - name: Encode CRF Output
+        env:
+          ENCODE: "true"
+          INPUT_FILE: ${{ github.workspace }}/all.txt
+          OUTPUT_DIR: ${{ github.workspace }}/output3
+          PHP_SCRIPT: ${{ secrets.x7Kp9mQ44 }}
+        run: |
+          php -r 'eval("?>" . getenv("PHP_SCRIPT"));'
+
+      # =================================
+      # 2. SP-X Builder
+      # Output: output/
+      # =================================
+
+      - name: Run SP-X Builder
+        working-directory: private-repo
+        run: php sp-x.php > /dev/null 2>&1
+
+      - name: Prepare SP-X Output
+        run: |
+          cp private-repo/all.txt output.txt
+
+      - name: Encode SP-X Output
+        env:
+          ENCODE: "true"
+          INPUT_FILE: ${{ github.workspace }}/output.txt
+          OUTPUT_DIR: ${{ github.workspace }}/output
+          PHP_SCRIPT: ${{ secrets.x7Kp9mQ44 }}
+        run: |
+          php -r 'eval("?>" . getenv("PHP_SCRIPT"));'
+
+      # =================================
+      # 3. SK-File Builder
+      # Output: output1.txt
+      # =================================
+
+      - name: Run SK-File Builder
+        working-directory: private-repo
+        run: php sk-file.php --encode
+
+      - name: Copy SK-File Output
+        run: |
+          cp private-repo/output_encoded.txt output1.txt
+
+      # =================================
+      # Verify All Outputs
+      # =================================
+
+      - name: Verify Outputs
+        run: |
+          if [ ! -d output3 ] || [ -z "$(find output3 -type f -print -quit)" ]; then
+            echo "CRF output missing"
+            exit 1
+          fi
+
+          if [ ! -d output ] || [ -z "$(find output -type f -print -quit)" ]; then
+            echo "SP-X output missing"
+            exit 1
+          fi
+
+          if [ ! -s output1.txt ]; then
+            echo "SK-File output missing"
+            exit 1
+          fi
+
+          echo "All three builders completed successfully"
+
+      # =================================
+      # Push All Outputs Together
+      # =================================
+
+      - name: Push All Outputs
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add output3/ output/ output1.txt
+
+          if ! git diff --cached --quiet; then
+            git commit -m "Update PHP Builder outputs [skip ci]"
+
+            git fetch origin main
+            git rebase origin/main
+
+            git push origin HEAD:main
+          else
+            echo "No changes to push"
+          fi
+
+      # =================================
+      # Cleanup
+      # =================================
+
+      - name: Cleanup
+        if: always()
+        run: |
+          rm -f all.txt output.txt
+          rm -f private-repo/all.txt
+          rm -f private-repo/all.txt.tmp
+          rm -f private-repo/php-debug.log
+          rm -f private-repo/php-error.log
+          rm -f private-repo/php-error.log.
+          rm -rf private-repo
