@@ -1,14 +1,7 @@
 name: PHP Builder
 
-run-name: Queue ${{ inputs.queue_id }}
-
 on:
   workflow_dispatch:
-    inputs:
-      queue_id:
-        description: Queue ID
-        required: false
-        type: string
 
 permissions:
   contents: write
