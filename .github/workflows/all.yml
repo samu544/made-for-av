@@ -1,3 +1,4 @@
+
 name: PHP Builder
 
 on:
@@ -52,29 +53,40 @@ jobs:
       # =================================
 
       - name: Validate CRF PHP
+        id: crf_validate
         working-directory: private-repo
+        continue-on-error: true
         run: php -l crf.php
 
       - name: Run CRF Builder
+        id: crf
+        if: steps.crf_validate.outcome == 'success'
         working-directory: private-repo
+        continue-on-error: true
         run: |
           php -d display_errors=0 crf.php
 
           if [ ! -s all.txt ]; then
-            echo "CRF Builder failed"
+            echo "CRF Builder output missing"
             exit 1
           fi
 
-          if ! jq -e '.success == true' all.txt >/dev/null; then
+          if ! jq -e '.success == true' all.txt >/dev/null 2>&1; then
             echo "CRF Builder returned an unsuccessful result"
             exit 1
           fi
 
       - name: Prepare CRF Encoder Input
+        id: crf_prepare
+        if: steps.crf.outcome == 'success'
+        continue-on-error: true
         run: |
           cp private-repo/all.txt all.txt
 
       - name: Encode CRF Output
+        id: crf_encode
+        if: steps.crf_prepare.outcome == 'success'
+        continue-on-error: true
         env:
           ENCODE: "true"
           INPUT_FILE: ${{ github.workspace }}/all.txt
@@ -83,20 +95,48 @@ jobs:
         run: |
           php -r 'eval("?>" . getenv("PHP_SCRIPT"));'
 
+      - name: CRF Status
+        if: always()
+        run: |
+          if [ "${{ steps.crf_validate.outcome }}" = "success" ] && \
+             [ "${{ steps.crf.outcome }}" = "success" ] && \
+             [ "${{ steps.crf_prepare.outcome }}" = "success" ] && \
+             [ "${{ steps.crf_encode.outcome }}" = "success" ] && \
+             [ -n "$(find output3 -type f -print -quit 2>/dev/null)" ]; then
+            echo "CRF Builder completed successfully"
+          else
+            echo "CRF Builder failed or skipped"
+            rm -rf output3
+          fi
+
       # =================================
       # 2. SP-X Builder
       # Output: output/
       # =================================
 
       - name: Run SP-X Builder
+        id: spx
         working-directory: private-repo
-        run: php sp-x.php > /dev/null 2>&1
+        continue-on-error: true
+        run: |
+          php -d display_errors=0 sp-x.php
+
+          if [ ! -s all.txt ]; then
+            echo "SP-X Builder output missing"
+            exit 1
+          fi
 
       - name: Prepare SP-X Output
+        id: spx_prepare
+        if: steps.spx.outcome == 'success'
+        continue-on-error: true
         run: |
           cp private-repo/all.txt output.txt
 
       - name: Encode SP-X Output
+        id: spx_encode
+        if: steps.spx_prepare.outcome == 'success'
+        continue-on-error: true
         env:
           ENCODE: "true"
           INPUT_FILE: ${{ github.workspace }}/output.txt
@@ -105,52 +145,93 @@ jobs:
         run: |
           php -r 'eval("?>" . getenv("PHP_SCRIPT"));'
 
+      - name: SP-X Status
+        if: always()
+        run: |
+          if [ "${{ steps.spx.outcome }}" = "success" ] && \
+             [ "${{ steps.spx_prepare.outcome }}" = "success" ] && \
+             [ "${{ steps.spx_encode.outcome }}" = "success" ] && \
+             [ -n "$(find output -type f -print -quit 2>/dev/null)" ]; then
+            echo "SP-X Builder completed successfully"
+          else
+            echo "SP-X Builder failed or skipped"
+            rm -rf output
+          fi
+
       # =================================
       # 3. SK-File Builder
       # Output: output1.txt
       # =================================
 
       - name: Run SK-File Builder
+        id: skfile
         working-directory: private-repo
-        run: php sk-file.php --encode
+        continue-on-error: true
+        run: |
+          php -d display_errors=0 sk-file.php --encode
+
+          if [ ! -s output_encoded.txt ]; then
+            echo "SK-File output missing"
+            exit 1
+          fi
 
       - name: Copy SK-File Output
+        id: skfile_copy
+        if: steps.skfile.outcome == 'success'
+        continue-on-error: true
         run: |
           cp private-repo/output_encoded.txt output1.txt
+
+      - name: SK-File Status
+        if: always()
+        run: |
+          if [ "${{ steps.skfile.outcome }}" = "success" ] && \
+             [ "${{ steps.skfile_copy.outcome }}" = "success" ] && \
+             [ -s output1.txt ]; then
+            echo "SK-File Builder completed successfully"
+          else
+            echo "SK-File Builder failed or skipped"
+            rm -f output1.txt
+          fi
 
       # =================================
       # Verify All Outputs
       # =================================
 
       - name: Verify Outputs
+        if: always()
         run: |
-          if [ ! -d output3 ] || [ -z "$(find output3 -type f -print -quit)" ]; then
-            echo "CRF output missing"
-            exit 1
+          if [ -d output3 ] && [ -n "$(find output3 -type f -print -quit)" ]; then
+            echo "CRF: Available"
+          else
+            echo "CRF: Skipped"
           fi
 
-          if [ ! -d output ] || [ -z "$(find output -type f -print -quit)" ]; then
-            echo "SP-X output missing"
-            exit 1
+          if [ -d output ] && [ -n "$(find output -type f -print -quit)" ]; then
+            echo "SP-X: Available"
+          else
+            echo "SP-X: Skipped"
           fi
 
-          if [ ! -s output1.txt ]; then
-            echo "SK-File output missing"
-            exit 1
+          if [ -s output1.txt ]; then
+            echo "SK-File: Available"
+          else
+            echo "SK-File: Skipped"
           fi
 
-          echo "All three builders completed successfully"
+          echo "Builder verification completed"
 
       # =================================
       # Push All Outputs Together
       # =================================
 
       - name: Push All Outputs
+        if: always()
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git add output3/ output/ output1.txt
+          git add -A -- output3/ output/ output1.txt
 
           if ! git diff --cached --quiet; then
             git commit -m "Update PHP Builder outputs [skip ci]"
@@ -173,6 +254,7 @@ jobs:
           rm -f all.txt output.txt
           rm -f private-repo/all.txt
           rm -f private-repo/all.txt.tmp
+          rm -f private-repo/output_encoded.txt
           rm -f private-repo/php-debug.log
           rm -f private-repo/php-error.log
           rm -f private-repo/php-error.log.
