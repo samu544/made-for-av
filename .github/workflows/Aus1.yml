@@ -1,1 +1,59 @@
 
+name: PHP Builder
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: global-workflow-queue
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Main repository
+      - uses: actions/checkout@v4
+
+      # Private repository
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ secrets.PRIVATE_REPO }}
+          token: ${{ secrets.PRIVATE_REPO_TOKEN }}
+          path: private-repo
+
+      # PHP setup
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.3"
+
+      # Run PHP Builder (Silent)
+      - name: Run PHP Builder
+        working-directory: private-repo
+        run: php austb.php > /dev/null 2>&1
+
+      # Copy Output to Main Repository
+      - name: Copy Output
+        run: |
+          mkdir -p output
+          cp private-repo/output/austv.json output4/austv.json
+
+      # Push Only Output
+      - name: Push Output
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add output4/austv.json
+
+          if ! git diff --cached --quiet; then
+            git commit -m "Update austv output [skip ci]"
+            git push
+          else
+            echo "No changes to push"
+          fi
