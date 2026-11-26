@@ -39,19 +39,11 @@ jobs:
           php -l austb.php
           php austb.php
 
-      # Copy Output to Main Repository
+      # Copy Output
       - name: Copy Output
         run: |
           mkdir -p output4
-
-          if [ ! -f private-repo/output/austv.json ]; then
-            echo "ERROR: austv.json not found!"
-            echo "Checking available files:"
-            find private-repo -name "austv.json" -type f
-            exit 1
-          fi
-
-          cp private-repo/output/austv.json output4/austv.json
+          cp private-repo/austv.json output4/austv.json
 
       # Push Only Output
       - name: Push Output
