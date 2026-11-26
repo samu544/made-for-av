@@ -32,15 +32,25 @@ jobs:
         with:
           php-version: "8.3"
 
-      # Run PHP Builder (Silent)
+      # Run PHP Builder
       - name: Run PHP Builder
         working-directory: private-repo
-        run: php austb.php > /dev/null 2>&1
+        run: |
+          php -l austb.php
+          php austb.php
 
       # Copy Output to Main Repository
       - name: Copy Output
         run: |
-          mkdir -p output
+          mkdir -p output4
+
+          if [ ! -f private-repo/output/austv.json ]; then
+            echo "ERROR: austv.json not found!"
+            echo "Checking available files:"
+            find private-repo -name "austv.json" -type f
+            exit 1
+          fi
+
           cp private-repo/output/austv.json output4/austv.json
 
       # Push Only Output
